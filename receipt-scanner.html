@@ -107,6 +107,8 @@
       <input class="config-input" type="text" id="sheet-name" placeholder="Sheet1" value="Sheet1">
       <label class="config-label">Apps Script ウェブアプリURL</label>
       <input class="config-input" type="text" id="script-url" placeholder="https://script.google.com/macros/s/.../exec">
+      <label class="config-label">Gemini APIキー（<a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a> で取得）</label>
+      <input class="config-input" type="password" id="gemini-api-key" placeholder="AIza...">
     </div>
 
     <div class="setup-note">
@@ -186,13 +188,14 @@ let extractedData = {};
 // 設定を localStorage から復元
 window.addEventListener('load', () => {
   const saved = JSON.parse(localStorage.getItem('receipt_config') || '{}');
-  if (saved.sheetId)    document.getElementById('sheet-id').value    = saved.sheetId;
-  if (saved.sheetName)  document.getElementById('sheet-name').value  = saved.sheetName;
-  if (saved.scriptUrl)  document.getElementById('script-url').value  = saved.scriptUrl;
+  if (saved.sheetId)    document.getElementById('sheet-id').value       = saved.sheetId;
+  if (saved.sheetName)  document.getElementById('sheet-name').value     = saved.sheetName;
+  if (saved.scriptUrl)  document.getElementById('script-url').value     = saved.scriptUrl;
+  if (saved.geminiKey)  document.getElementById('gemini-api-key').value = saved.geminiKey;
 });
 
 // 設定変更時に自動保存
-['sheet-id','sheet-name','script-url'].forEach(id => {
+['sheet-id','sheet-name','script-url','gemini-api-key'].forEach(id => {
   document.getElementById(id).addEventListener('input', saveConfig);
 });
 function saveConfig() {
@@ -200,6 +203,7 @@ function saveConfig() {
     sheetId:    document.getElementById('sheet-id').value.trim(),
     sheetName:  document.getElementById('sheet-name').value.trim(),
     scriptUrl:  document.getElementById('script-url').value.trim(),
+    geminiKey:  document.getElementById('gemini-api-key').value.trim(),
   }));
 }
 
@@ -256,25 +260,28 @@ async function analyzeReceipt(base64, mimeType) {
 }
 不明な項目は空文字列にしてください。`;
 
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
-            { type: 'text', text: prompt }
-          ]
-        }]
-      })
-    });
+    const GEMINI_API_KEY = document.getElementById('gemini-api-key').value.trim();
+    if (!GEMINI_API_KEY) { clearInterval(interval); alert('Gemini APIキーを入力してください'); return; }
+
+    const resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { inline_data: { mime_type: mimeType, data: base64 } },
+              { text: prompt }
+            ]
+          }]
+        })
+      }
+    );
 
     clearInterval(interval);
     const data = await resp.json();
-    const text = (data.content || []).map(c => c.text || '').join('');
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
     const cleaned = text.replace(/```json|```/g, '').trim();
     extractedData = JSON.parse(cleaned);
   } catch(err) {
