@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="領収書スキャナー">
+  <title>領収書スキャナー</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif; background: #f5f5f0; color: #1a1a1a; }
+
+    .app { max-width: 480px; margin: 0 auto; padding: 1rem; min-height: 100vh; }
+
+    .header { text-align: center; padding: 1.5rem 0 1rem; }
+    .header h1 { font-size: 20px; font-weight: 600; color: #1a1a1a; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .header p { font-size: 13px; color: #888; margin-top: 4px; }
+
+    .step-bar { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0.5rem 0 1.5rem; }
+    .step { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #aaa; }
+    .step.active { color: #185FA5; font-weight: 600; }
+    .step.done { color: #3B6D11; }
+    .step-dot { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid currentColor; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0; }
+    .step-line { width: 20px; height: 1px; background: #ddd; }
+
+    .card { background: #fff; border: 1px solid #e8e8e4; border-radius: 14px; padding: 1.25rem; margin-bottom: 1rem; }
+
+    .camera-area { border: 2px dashed #ccc; border-radius: 12px; min-height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; cursor: pointer; padding: 2rem; transition: background 0.15s; -webkit-tap-highlight-color: transparent; }
+    .camera-area:active { background: #f5f5f0; }
+    .camera-area svg { width: 48px; height: 48px; color: #aaa; }
+    .camera-label { font-size: 16px; font-weight: 600; color: #1a1a1a; }
+    .camera-sub { font-size: 13px; color: #888; text-align: center; line-height: 1.5; }
+
+    .preview-wrap { position: relative; border-radius: 10px; overflow: hidden; margin-bottom: 0; }
+    .preview-wrap img { width: 100%; display: block; }
+    .preview-badge { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.55); color: #fff; font-size: 11px; padding: 4px 10px; border-radius: 20px; }
+
+    .btn-primary { width: 100%; padding: 15px; background: #185FA5; color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; -webkit-tap-highlight-color: transparent; }
+    .btn-primary:active { opacity: 0.85; }
+    .btn-primary:disabled { opacity: 0.45; }
+    .btn-secondary { width: 100%; padding: 13px; background: #fff; color: #1a1a1a; border: 1px solid #ddd; border-radius: 12px; font-size: 15px; font-weight: 500; cursor: pointer; margin-top: 10px; -webkit-tap-highlight-color: transparent; }
+    .btn-secondary:active { background: #f5f5f0; }
+    .btn-success { width: 100%; padding: 15px; background: #2d6a10; color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; -webkit-tap-highlight-color: transparent; }
+    .btn-success:active { opacity: 0.85; }
+
+    .loading-wrap { text-align: center; padding: 2rem 0; }
+    .spinner { width: 40px; height: 40px; border: 3px solid #e8e8e4; border-top-color: #185FA5; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 1rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-label { font-size: 14px; color: #555; }
+    .loading-sub { font-size: 12px; color: #aaa; margin-top: 4px; }
+
+    .section-title { font-size: 13px; font-weight: 600; color: #888; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .field-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid #f0f0ec; gap: 12px; }
+    .field-row:last-child { border-bottom: none; }
+    .field-key { font-size: 12px; color: #888; white-space: nowrap; padding-top: 8px; min-width: 90px; }
+    .field-val { flex: 1; }
+    .field-val input { width: 100%; font-size: 15px; font-weight: 500; color: #1a1a1a; background: #f5f5f0; border: 1px solid transparent; border-radius: 8px; padding: 6px 10px; outline: none; font-family: inherit; }
+    .field-val input:focus { border-color: #185FA5; background: #fff; }
+
+    .result-meta { background: #e8f0f8; border-radius: 10px; padding: 10px 14px; margin-bottom: 1rem; display: flex; align-items: center; gap: 8px; font-size: 13px; color: #185FA5; }
+
+    .success-wrap { text-align: center; padding: 1.5rem 0; }
+    .success-icon { font-size: 52px; line-height: 1; margin-bottom: 12px; }
+    .success-title { font-size: 20px; font-weight: 700; color: #1a1a1a; margin-bottom: 6px; }
+    .success-sub { font-size: 14px; color: #888; }
+
+    .setup-note { background: #e8f0f8; border-radius: 10px; padding: 12px 14px; margin-bottom: 1rem; font-size: 13px; color: #185FA5; display: flex; gap: 8px; align-items: flex-start; line-height: 1.5; }
+
+    .config-label { font-size: 12px; color: #888; margin-bottom: 4px; display: block; }
+    .config-input { width: 100%; font-size: 14px; background: #f5f5f0; border: 1px solid #e0e0dc; border-radius: 8px; padding: 10px 12px; color: #1a1a1a; font-family: inherit; outline: none; margin-bottom: 10px; }
+    .config-input:focus { border-color: #185FA5; background: #fff; }
+
+    #file-input { display: none; }
+  </style>
+</head>
+<body>
+
+<input type="file" id="file-input" accept="image/*" capture="environment">
+
+<div class="app">
+  <div class="header">
+    <h1>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      領収書スキャナー
+    </h1>
+    <p>撮影するだけで自動入力</p>
+  </div>
+
+  <div class="step-bar" id="step-bar">
+    <div class="step active" id="s1"><div class="step-dot">1</div>撮影</div>
+    <div class="step-line"></div>
+    <div class="step" id="s2"><div class="step-dot">2</div>解析</div>
+    <div class="step-line"></div>
+    <div class="step" id="s3"><div class="step-dot">3</div>確認</div>
+    <div class="step-line"></div>
+    <div class="step" id="s4"><div class="step-dot">4</div>保存</div>
+  </div>
+
+  <!-- Step 1: Camera -->
+  <div id="screen-camera">
+    <div class="card">
+      <div class="section-title">スプレッドシート設定</div>
+      <label class="config-label">スプレッドシートID（URLの /d/ と /edit の間）</label>
+      <input class="config-input" type="text" id="sheet-id" placeholder="例: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms">
+      <label class="config-label">シート名</label>
+      <input class="config-input" type="text" id="sheet-name" placeholder="Sheet1" value="Sheet1">
+      <label class="config-label">Apps Script ウェブアプリURL</label>
+      <input class="config-input" type="text" id="script-url" placeholder="https://script.google.com/macros/s/.../exec">
+    </div>
+
+    <div class="setup-note">
+      ⓘ 設定は入力後に自動で保存されます。次回起動時は入力不要です。
+    </div>
+
+    <div class="card" onclick="document.getElementById('file-input').click()">
+      <div class="camera-area">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        <div class="camera-label">領収書を撮影</div>
+        <div class="camera-sub">タップしてカメラを起動<br>または画像ファイルを選択</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2: Analyzing -->
+  <div id="screen-analyzing" style="display:none;">
+    <div class="card">
+      <div class="preview-wrap" id="preview-wrap"></div>
+    </div>
+    <div class="card">
+      <div class="loading-wrap">
+        <div class="spinner"></div>
+        <div class="loading-label" id="loading-label">Claude AIが領収書を解析中...</div>
+        <div class="loading-sub">日付・店名・金額などを自動抽出しています</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3: Review -->
+  <div id="screen-review" style="display:none;">
+    <div class="card">
+      <div class="preview-wrap">
+        <img id="review-img" src="" alt="領収書プレビュー">
+        <div class="preview-badge">✓ 解析完了</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">抽出データを確認・編集</div>
+      <div id="fields-container"></div>
+    </div>
+    <div class="result-meta">
+      ✦ AIが自動抽出しました。修正してから保存できます。
+    </div>
+    <button class="btn-success" onclick="saveToSheet()">スプレッドシートに保存</button>
+    <button class="btn-secondary" onclick="resetApp()">別の領収書を撮影</button>
+  </div>
+
+  <!-- Step 4: Success -->
+  <div id="screen-success" style="display:none;">
+    <div class="card">
+      <div class="success-wrap">
+        <div class="success-icon">✅</div>
+        <div class="success-title">保存しました！</div>
+        <div class="success-sub" id="success-sub">スプレッドシートに記録されました</div>
+      </div>
+    </div>
+    <div class="card" id="saved-summary"></div>
+    <button class="btn-primary" onclick="resetApp()">次の領収書を撮影</button>
+    <button class="btn-secondary" id="open-sheet-btn" onclick="openSheet()">スプレッドシートを開く ↗</button>
+  </div>
+</div>
+
+<script>
+const FIELDS = [
+  { key: 'date',    label: '日付' },
+  { key: 'store',   label: '店名・取引先' },
+  { key: 'amount',  label: '金額（合計）' },
+  { key: 'tax',     label: '税額・税率' },
+  { key: 'items',   label: '品目・内容' },
+  { key: 'payment', label: '支払い方法' },
+];
+
+let currentImageBase64 = null;
+let extractedData = {};
+
+// 設定を localStorage から復元
+window.addEventListener('load', () => {
+  const saved = JSON.parse(localStorage.getItem('receipt_config') || '{}');
+  if (saved.sheetId)    document.getElementById('sheet-id').value    = saved.sheetId;
+  if (saved.sheetName)  document.getElementById('sheet-name').value  = saved.sheetName;
+  if (saved.scriptUrl)  document.getElementById('script-url').value  = saved.scriptUrl;
+});
+
+// 設定変更時に自動保存
+['sheet-id','sheet-name','script-url'].forEach(id => {
+  document.getElementById(id).addEventListener('input', saveConfig);
+});
+function saveConfig() {
+  localStorage.setItem('receipt_config', JSON.stringify({
+    sheetId:    document.getElementById('sheet-id').value.trim(),
+    sheetName:  document.getElementById('sheet-name').value.trim(),
+    scriptUrl:  document.getElementById('script-url').value.trim(),
+  }));
+}
+
+// ファイル選択
+const fileInput = document.getElementById('file-input');
+fileInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    const dataUrl = ev.target.result;
+    const mimeType = file.type || 'image/jpeg';
+    currentImageBase64 = dataUrl.split(',')[1];
+
+    showScreen('analyzing');
+    setStep(2);
+
+    const img1 = document.createElement('img');
+    img1.src = dataUrl;
+    img1.style.cssText = 'width:100%;display:block;';
+    document.getElementById('preview-wrap').innerHTML = '';
+    document.getElementById('preview-wrap').appendChild(img1);
+    document.getElementById('review-img').src = dataUrl;
+
+    await analyzeReceipt(currentImageBase64, mimeType);
+  };
+  reader.readAsDataURL(file);
+  fileInput.value = '';
+});
+
+async function analyzeReceipt(base64, mimeType) {
+  const msgs = [
+    'Claude AIが領収書を解析中...',
+    '文字情報を認識しています...',
+    '項目を抽出しています...'
+  ];
+  let mi = 0;
+  const interval = setInterval(() => {
+    mi = (mi + 1) % msgs.length;
+    const lbl = document.getElementById('loading-label');
+    if (lbl) lbl.textContent = msgs[mi];
+  }, 1800);
+
+  try {
+    const prompt = `この領収書の画像から以下の情報を抽出してください。
+必ずJSON形式のみで回答してください。他のテキストは一切含めないでください。マークダウンのコードブロックも不要です。
+{
+  "date": "日付（YYYY/MM/DD形式）",
+  "store": "店名・取引先名",
+  "amount": "合計金額（例: ¥1,500）",
+  "tax": "税額または税率（例: ¥136 / 10%）",
+  "items": "品目・内容（複数ある場合はカンマ区切り）",
+  "payment": "支払い方法（現金/クレジットカード/電子マネー等）"
+}
+不明な項目は空文字列にしてください。`;
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
+            { type: 'text', text: prompt }
+          ]
+        }]
+      })
+    });
+
+    clearInterval(interval);
+    const data = await resp.json();
+    const text = (data.content || []).map(c => c.text || '').join('');
+    const cleaned = text.replace(/```json|```/g, '').trim();
+    extractedData = JSON.parse(cleaned);
+  } catch(err) {
+    clearInterval(interval);
+    extractedData = { date:'', store:'', amount:'', tax:'', items:'', payment:'' };
+    alert('解析に失敗しました。ネットワーク接続やAPIキーの設定を確認してください。');
+    console.error(err);
+  }
+
+  renderReview();
+  showScreen('review');
+  setStep(3);
+}
+
+function renderReview() {
+  const container = document.getElementById('fields-container');
+  container.innerHTML = '';
+  FIELDS.forEach(f => {
+    const row = document.createElement('div');
+    row.className = 'field-row';
+    const val = (extractedData[f.key] || '').replace(/"/g, '&quot;');
+    row.innerHTML = `
+      <div class="field-key">${f.label}</div>
+      <div class="field-val"><input type="text" id="field-${f.key}" value="${val}" placeholder="未検出"></div>
+    `;
+    container.appendChild(row);
+  });
+}
+
+async function saveToSheet() {
+  const sheetId   = document.getElementById('sheet-id').value.trim();
+  const sheetName = document.getElementById('sheet-name').value.trim() || 'Sheet1';
+  const scriptUrl = document.getElementById('script-url').value.trim();
+
+  if (!sheetId)    { alert('スプレッドシートIDを入力してください'); return; }
+  if (!scriptUrl)  { alert('Apps ScriptのウェブアプリURLを入力してください'); return; }
+
+  const payload = { sheetName };
+  FIELDS.forEach(f => { payload[f.key] = document.getElementById('field-' + f.key)?.value || ''; });
+
+  try {
+    await fetch(scriptUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch(err) {
+    console.error('保存エラー:', err);
+  }
+
+  showScreen('success');
+  setStep(4);
+
+  const savedData = {};
+  FIELDS.forEach(f => { savedData[f.label] = payload[f.key]; });
+
+  const summary = document.getElementById('saved-summary');
+  summary.innerHTML = '<div class="section-title">保存した内容</div>' +
+    FIELDS.map(f => `
+      <div class="field-row">
+        <div class="field-key">${f.label}</div>
+        <div style="flex:1;font-size:14px;font-weight:500;text-align:right;color:${savedData[f.label] ? '#1a1a1a' : '#aaa'}">
+          ${savedData[f.label] || '未入力'}
+        </div>
+      </div>
+    `).join('');
+
+  document.getElementById('success-sub').textContent = `「${sheetName}」シートに追記されました`;
+}
+
+function openSheet() {
+  const sheetId = document.getElementById('sheet-id').value.trim();
+  if (sheetId) window.open(`https://docs.google.com/spreadsheets/d/${sheetId}/edit`, '_blank');
+}
+
+function resetApp() {
+  currentImageBase64 = null;
+  extractedData = {};
+  showScreen('camera');
+  setStep(1);
+}
+
+function showScreen(name) {
+  ['camera','analyzing','review','success'].forEach(s => {
+    document.getElementById('screen-' + s).style.display = s === name ? '' : 'none';
+  });
+}
+
+function setStep(n) {
+  [1,2,3,4].forEach(i => {
+    const el = document.getElementById('s' + i);
+    el.className = 'step' + (i < n ? ' done' : i === n ? ' active' : '');
+    const dot = el.querySelector('.step-dot');
+    dot.textContent = i < n ? '✓' : String(i);
+  });
+}
+</script>
+</body>
+</html>
